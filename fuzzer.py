@@ -18,7 +18,7 @@ def fuzzUsername(host , port):
 		time.sleep(0.5)
 
 		print("Send 'USER' command")
-		s.send(("USER comp4621\r\n").encode('utf-8'))		
+		s.send(("USER\r\n").encode('utf-8'))		
 		output = s.recv(1024)
 		print("Recieved: "+(output.decode('utf-8')))
 		time.sleep(0.5)
@@ -49,23 +49,35 @@ def fuzzUsername(host , port):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-H', '--host',
+	parser.add_argument('--host',
     	default='localhost',
     	dest='host',
-    	help='Provide destination host. Default is localhost',
+    	help='Destination host. Default is localhost.',
     	type=str
-    	)
-	parser.add_argument('-P', '--port',
+    )
+	parser.add_argument('--port',
     	default='1025',
         dest='port',
-     	help='Provide destination port. Defaults is 1025',
+     	help='Destination port. Default is 1025.',
     	type=int
-    	)
-	parser.add_argument('-U', '--user',
+    )
+	parser.add_argument('--username',
+    	default='comp4621',
+        dest='username',
+     	help='Username to connect to the FTP Server. Default is comp4621.',
+    	type=str
+    )
+	parser.add_argument('--password',
+    	default='network',
+        dest='password',
+     	help='Password to connect to the FTP Server. Default is network.',
+    	type=str
+    )
+	parser.add_argument('--fuzz_user',
     	action='store_true',
      	dest='fuzz_user',
-    	help='Specify this option if you want to fuzz the USER command'
-    	)
+    	help='Fuzz the USER command.'
+    )
 	args = parser.parse_args()
 
 	if args.fuzz_user:
