@@ -1,0 +1,5 @@
+username:passw0rd
+user1:pass1
+user3:password
+ftpuser:ftpuser
+comp4621:network
