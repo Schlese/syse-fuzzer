@@ -74,6 +74,68 @@ def fuzzFileAccess(host, port):
     file_down_thread2.start()
 
 
+def ddos(host , port, username, password, number_connections):
+	socket_list = []
+
+	print("Execute DDOS command with {} simultaneous connections".format(number_connections))
+	print("Open connections to server and authenticate with the passed username and password\n")
+	for index in range(number_connections):
+		try:
+			s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+			s.settimeout(10)
+			connect = s.connect((host,port))
+			socket_list.append(s)
+			time.sleep(0.1)
+			output = s.recv(1024)
+			time.sleep(0.1)
+			s.send(("USER {}\r\n".format(username)).encode('utf-8'))		
+			output = s.recv(1024)
+			time.sleep(0.1)
+			s.send(("PASS {}\r\n".format(password)).encode('utf-8'))	
+			output = s.recv(1024)
+			time.sleep(0.1)
+		except socket.error as e:
+			print("Caught exception socket.error: {} at connection {}".format(e, index))
+
+
+def commandsWithoutArguments(host, port):	
+	commands = ['ABOR','ACCT','ALLO','APPE','AUTH','CWD','CDUP','DELE','FEAT','HELP','HOST','LANG','LIST',
+				'MDTM','MKD','MLST','MODE','NLST','NLST -al','NOOP','OPTS','PORT','PROT','PWD','REIN',
+				'REST','RETR','RMD','RNFR','RNTO','SIZE','SITE','SITE CHMOD','SITE CHOWN','SITE EXEC','SITE MSG',
+				'SITE PSWD','SITE ZONE','SITE WHO','SMNT','STAT','STOR','STOU','STRU','SYST','TYPE','USER','XCUP',
+				'XCRC','XCWD','XMKD','XPWD','XRMD']
+
+	print("Executing the following commands without arguments:\n{}".format(commands))
+
+	for command in commands:
+		try:
+			s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+			connect = s.connect((host,port))
+			time.sleep(1)
+			s.recv(1024)
+			time.sleep(0.1)
+
+			s.send(("{}\r\n".format(command)).encode('utf-8'))		
+			s.recv(1024)
+			time.sleep(0.1)
+
+			s.send(("PWD\r\n").encode('utf-8'))	
+			s.recv(1024)
+			time.sleep(0.1)
+
+			s.send(("QUIT\r\n").encode('utf-8'))	
+			s.recv(1024)
+			time.sleep(0.1)
+			s.close()
+		except:
+			print("Server crashed while executing '{}'".format(command))
+
+def check_positive(value):
+    ivalue = int(value)
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError("%s is an invalid positive int value" % value)
+    return ivalue
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--host',
@@ -110,13 +172,27 @@ def main():
                         dest='fuzz_file_access',
                         help='Command to fuzz concurrent access to files.'
                         )
+    parser.add_argument('--ddos',
+		                default=argparse.SUPPRESS,
+                        dest='ddos',
+                        help='Open many simultaneous connections to the FTP Server.',
+                        type=check_positive
+    )
+    parser.add_argument('--commands-no-args',
+                        action='store_true',
+                        dest='commandsNoArgs',
+                        help='Execute many FTP commands without arguments.'
+    )
     args = parser.parse_args()
 
     if args.fuzz_user:
         fuzzUsername(args.host, args.port)
     if args.fuzz_file_access:
         fuzzFileAccess(args.host, args.port)
-
+    if args.commandsNoArgs:
+        commandsWithoutArguments(args.host, args.port)
+    if hasattr(args, 'ddos'):
+        ddos(args.host, args.port, args.username, args.password, args.ddos)
 
 if __name__ == '__main__':
     main()
