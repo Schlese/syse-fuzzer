@@ -118,11 +118,6 @@ def main():
                         help='Password to connect to the FTP Server. Default is network.',
                         type=str
                         )
-    parser.add_argument('--fuzz_user',
-                        action='store_true',
-                        dest='fuzz_user',
-                        help='Fuzz the USER command.'
-                        )
     parser.add_argument('--fuzz-file-access',
                         action='store_true',
                         dest='fuzz_file_access',
