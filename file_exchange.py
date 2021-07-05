@@ -40,9 +40,14 @@ def download_file(command_socket, data_socket, directory, filename):
     command_socket.send(("RETR " + filename + "\r\n").encode('utf-8'))
     output = command_socket.recv(FILE_JUNK)
     print("Recieved: " + (output.decode('utf-8')))
-    fileSplit = filename.split('.')
 
-    with open(directory + fileSplit[0] + "-" + get_random_string() + "." + fileSplit[1], "wb") as f:
+    file_split = filename.split('.')
+    if len(file_split) > 1:
+        store_file_name = directory + file_split[0] + "-" + get_random_string() + "." + file_split[len(file_split)-1]
+    else:
+        store_file_name = directory + file_split[0] + "-" + get_random_string()
+
+    with open(store_file_name, "wb") as f:
         while True:
             bytes_read = data_socket.recv(FILE_JUNK)
             if not bytes_read:
